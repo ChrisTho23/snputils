@@ -35,9 +35,7 @@ dependencies = [
     "polars",
     "plotly",
     "plotly_express",
-    "kaleido",
     "nbformat",
-    "pong",
     "adjustText",
     "zstandard",
 ]
