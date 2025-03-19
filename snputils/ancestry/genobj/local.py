@@ -3,10 +3,12 @@ from pathlib import Path
 import numpy as np
 import copy
 import warnings
-from typing import Union, List, Dict, Sequence, Optional
+from typing import Union, List, Dict, Sequence, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from snputils.snp.genobj.snpobj import SNPObject
 
 from .base import AncestryObject
-from snputils.snp.genobj.snpobj import SNPObject
 
 log = logging.getLogger(__name__)
 
@@ -17,10 +19,10 @@ class LocalAncestryObject(AncestryObject):
     """
     def __init__(
         self,
-        haplotypes: List[str],
+        haplotypes: List[str], 
         lai: np.ndarray,
-        samples: Optional[List[str]] = None,
-        ancestry_map: Optional[Dict[str, str]] = None,
+        samples: Optional[List[str]] = None, 
+        ancestry_map: Optional[Dict[str, str]] = None, 
         window_sizes: Optional[np.ndarray] = None,
         centimorgan_pos: Optional[np.ndarray] = None,
         chromosomes: Optional[np.ndarray] = None,
@@ -28,14 +30,14 @@ class LocalAncestryObject(AncestryObject):
     ) -> None:
         """
         Args:
-            haplotypes (list of str of length n_haplotypes): 
+            haplotypes (list of str of length n_haplotypes):
                 A list of unique haplotype identifiers.
             lai (array of shape (n_windows, n_haplotypes)): 
                 A 2D array containing local ancestry inference values, where each row represents a 
                 genomic window, and each column corresponds to a haplotype phase for each sample.
-            samples (list of str of length n_samples, optional): 
+            samples (list of str of length n_samples, optional):
                 A list of unique sample identifiers.
-            ancestry_map (dict of str to str, optional): 
+            ancestry_map (dict of str to str, optional):
                 A dictionary mapping ancestry codes to region names.
             window_sizes (array of shape (n_windows,), optional): 
                 An array specifying the number of SNPs in each genomic window.
@@ -508,7 +510,7 @@ class LocalAncestryObject(AncestryObject):
     ) -> 'SNPObject':
         """
         Convert `self` into a `snputils.snp.genobj.SNPObject` SNP-level Local Ancestry Information (LAI), 
-        with optional support for Single Nucleotide Polymorphism (SNP) data.
+        with optional support for SNP data.
         
         If SNP positions (`variants_pos`) and chromosomes (`variants_chrom`) are not specified, the method generates 
         SNPs uniformly across the start and end positions of each genomic window. Otherwise, the provided SNP 
@@ -535,9 +537,11 @@ class LocalAncestryObject(AncestryObject):
                 An array containing the Phred-scaled quality score for each SNP.
 
         Returns:
-            SNPObject: 
+            **SNPObject**: 
                 A `SNPObject` containing SNP-level ancestry data, along with optional metadata.
         """
+        from snputils.snp.genobj.snpobj import SNPObject
+
         # Extract attributes from SNPObject if provided
         if snpobject is not None:
             variants_chrom = variants_chrom if variants_chrom is not None else snpobject.variants_chrom

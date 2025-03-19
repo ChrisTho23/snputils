@@ -1,5 +1,6 @@
 import logging
 from typing import List, Optional
+import csv
 
 import numpy as np
 import polars as pl
@@ -22,6 +23,7 @@ class BEDReader(SNPBaseReader):
         variant_ids: Optional[np.ndarray] = None,
         variant_idxs: Optional[np.ndarray] = None,
         sum_strands: bool = False,
+        separator: Optional[str] = None,
     ) -> SNPObject:
         """
         Read a bed fileset (bed, bim, fam) into a SNPObject.
@@ -37,10 +39,12 @@ class BEDReader(SNPBaseReader):
             sample_idxs: List of sample indices to read. If None and sample_ids is None, all samples are read.
             variant_ids: List of variant IDs to read. If None and variant_idxs is None, all variants are read.
             variant_idxs: List of variant indices to read. If None and variant_ids is None, all variants are read.
-            sum_strands: True if the maternal and paternal strands are to be summed together, 
-                False if the strands are to be stored separately. Note that due to the pgenlib backend, when sum_strands is False, 
+            sum_strands: True if the maternal and paternal strands are to be summed together,
+                False if the strands are to be stored separately. Note that due to the pgenlib backend, when sum_strands is False,
                 8 times as much RAM is required. Nonetheless, the calldata_gt will only be double the size.
                 WARNING: bed files do not store phase information. If you need it, use vcf or pgen.
+            separator: Separator used in the pvar file. If None, the separator is automatically detected.
+                If the automatic detection fails, please specify the separator manually.
 
         Returns:
             snpobj: SNPObject containing the data from the pgen fileset.
@@ -81,9 +85,13 @@ class BEDReader(SNPBaseReader):
         else:
             log.info(f"Reading {filename_noext}.bim")
 
+            if separator is None:
+                with open(filename_noext + ".bim", "r") as file:
+                    separator = csv.Sniffer().sniff(file.readline()).delimiter
+
             bim = pl.read_csv(
                 filename_noext + ".bim",
-                separator='\t',
+                separator=separator,
                 has_header=False,
                 new_columns=["#CHROM", "ID", "CM", "POS", "ALT", "REF"],
                 schema_overrides={
@@ -94,11 +102,11 @@ class BEDReader(SNPBaseReader):
                     "ALT": pl.String,
                     "REF": pl.String
                 }
-            )
+            ).with_row_index()
             file_num_variants = bim.height
 
             if variant_ids is not None:
-                variant_idxs = bim.filter(pl.col("ID").is_in(variant_ids)).row_nr().to_numpy()
+                variant_idxs = bim.filter(pl.col("ID").is_in(variant_ids)).select("index").to_series().to_numpy()
 
             if variant_idxs is None:
                 num_variants = file_num_variants
@@ -106,13 +114,13 @@ class BEDReader(SNPBaseReader):
             else:
                 num_variants = np.size(variant_idxs)
                 variant_idxs = np.array(variant_idxs, dtype=np.uint32)
-                bim = bim.filter(pl.col("row_nr").is_in(variant_idxs))
+                bim = bim.filter(pl.col("index").is_in(variant_idxs))
 
             log.info(f"Reading {filename_noext}.fam")
 
             fam = pl.read_csv(
                 filename_noext + ".fam",
-                separator='\t',
+                separator=separator,
                 has_header=False,
                 new_columns=["Family ID", "IID", "Father ID",
                              "Mother ID", "Sex code", "Phenotype value"],
@@ -121,21 +129,20 @@ class BEDReader(SNPBaseReader):
                     "IID": pl.String,
                     "Father ID": pl.String,
                     "Mother ID": pl.String,
-                    "Sex code": pl.Int64,
-                    "Phenotype value": pl.Float64
+                    "Sex code": pl.String,
                 }
-            )
+            ).with_row_index()
             file_num_samples = fam.height
 
             if sample_ids is not None:
-                sample_idxs = fam.filter(pl.col("IID").is_in(sample_ids)).row_nr().to_numpy()
+                sample_idxs = fam.filter(pl.col("IID").is_in(sample_ids)).select("index").to_series().to_numpy()
 
             if sample_idxs is None:
                 num_samples = file_num_samples
             else:
                 num_samples = np.size(sample_idxs)
                 sample_idxs = np.array(sample_idxs, dtype=np.uint32)
-                fam = fam.filter(pl.col("row_nr").is_in(sample_idxs))
+                fam = fam.filter(pl.col("index").is_in(sample_idxs))
 
         if "GT" in fields:
             log.info(f"Reading {filename_noext}.bed")

@@ -4,14 +4,14 @@
   </a>
 </p>
 
-# snputils: A Python library for processing diverse genomes
+# snputils: A Python Library for Processing Genetic Variation and Population Structure
 
 [![License BSD-3](https://img.shields.io/pypi/l/snputils.svg?color=green)](https://github.com/ai-sandbox/snputils/raw/main/LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/snputils.svg?color=green)](https://pypi.org/project/snputils)
 [![Python Version](https://img.shields.io/pypi/pyversions/snputils.svg?color=green)](https://python.org)
 [![Test, Docs & Publish](https://github.com/AI-sandbox/snputils/actions/workflows/ci-cd.yml/badge.svg?event=release)](https://github.com/AI-sandbox/snputils/actions/workflows/ci-cd.yml)
 
-**snputils** is a Python package designed to ease the processing and analysis of common and diverse genomic datasets, while handling all the complexities of diverse genome formats and operations very efficiently. The library provides robust tools for handling sequencing and ancestry data, with a focus on performance, ease of use, and advanced visualization capabilities. 
+**snputils** is a Python package designed to ease the processing and analysis of genomic datasets, while handling all the complexities of different genome formats and operations very efficiently. The library provides robust tools for handling sequencing and ancestry data, with a focus on performance, ease of use, and advanced visualization capabilities. 
 
 Developed in collaboration between Stanford University's Department of Biomedical Data Science, UC Santa Cruz Genomics Institute, and more collaborators worldwide.
 

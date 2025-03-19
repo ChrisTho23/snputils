@@ -75,6 +75,8 @@ def data_path():
                         "subset.txt",
                         "--recode",
                         "vcf",
+                        "--set-missing-var-ids",
+                        "@:#",
                         "--out",
                         plink_vcf_out,
                     ],

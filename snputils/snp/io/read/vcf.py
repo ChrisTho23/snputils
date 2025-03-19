@@ -2,6 +2,8 @@ import logging
 from typing import Optional, List
 from pathlib import Path
 import gzip
+import csv
+
 import allel
 import numpy as np
 import polars as pl
@@ -55,7 +57,7 @@ class VCFReader(SNPBaseReader):
             samples: Selection of samples to extract calldata for. If provided, should be
                 a list of strings giving sample identifiers. May also be a list of
                 integers giving indices of selected samples.
-            sum_strands: True if the maternal and paternal strands are to be summed together, 
+            sum_strands: True if the maternal and paternal strands are to be summed together,
             False if the strands are to be stored separately.
 
         Returns:
@@ -99,19 +101,17 @@ class VCFReader(SNPBaseReader):
         return snpobj
 
 
-def _get_vcf_names(vcf_path: str):
+def _get_vcf_col_names_and_sep(vcf_path: str, separator: Optional[str] = None):
     """
-    Get the column names from a VCF file.
+    Get the column names and separator used in the VCF file.
 
-    Parameters
-    ----------
-    vcf_path: str or Path
-        The path to the VCF file.
+    Args:
+        vcf_path: The path to the VCF file.
+        separator: Separator character. If None, the separator is automatically detected.
 
-    Returns
-    -------
-    List[str]
-        List of column names.
+    Returns:
+        col_names: List of column names.
+        separator: Separator character.
     """
     vcf_path = Path(vcf_path)
     if vcf_path.suffixes[-2:] == ['.vcf', '.gz']:
@@ -123,34 +123,32 @@ def _get_vcf_names(vcf_path: str):
     else:
         raise ValueError(f"Unsupported file extension: {vcf_path.suffixes}")
 
-    with open_func(vcf_path, mode) as ifile:
-        for line in ifile:
+    with open_func(vcf_path, mode) as file:
+        for line in file:
             if line.startswith("#CHROM"):
-                vcf_names = [x.strip() for x in line.split('\t')]
+                if separator is None:
+                    separator = csv.Sniffer().sniff(file.readline()).delimiter
+                col_names = [x.strip() for x in line.split(separator)]
                 break
 
-    return vcf_names
+    return col_names, separator
 
 
-def _infer_data_types(names: List):
+def _infer_col_data_types(names: List):
     """
     Infer data types for VCF columns.
 
-    Parameters
-    ----------
-    names: List
-        List of column names.
+    Args:
+        names: List of column names.
 
-    Returns
-    -------
-    dict
-        Dictionary mapping column names to data types.
+    Returns:
+        col_dtypes: Dictionary mapping column names to data types.
     """
-    dtype_options = {name: pl.Utf8 for name in names}
-    dtype_options['POS'] = pl.Int32
-    dtype_options['#CHROM'] = pl.String
+    col_dtypes = {name: pl.Utf8 for name in names}
+    col_dtypes['POS'] = pl.Int32
+    col_dtypes['#CHROM'] = pl.String
 
-    return dtype_options
+    return col_dtypes
 
 
 def _extract_columns(names: List[str], fields: List[str], exclude_fields: List[str],
@@ -158,21 +156,22 @@ def _extract_columns(names: List[str], fields: List[str], exclude_fields: List[s
     """
     Extracts columns based on specified `fields`, `exclude_fields` and `samples`.
 
-    Parameters
-    ----------
-    names: List
-        List of column names.
-    fields: list of strings, default=None
-        Fields to extract data for. This parameter specifies which data fields
-        from the VCF file should be included in the result. To extract all 
-        fields, provide just the string '*'. 
-    exclude_fields: list of strings, default=None
-        Fields to exclude. E.g., for use in combination with fields='*'.
-    samples: list of strings, default=None
-        Selection of samples to extract calldata for. If provided, should be 
-        a list of strings giving sample identifiers. May also be a list of 
-        integers giving indices of selected samples.
+    Args:
+        names: List of column names.
+        fields: Fields to extract data for. This parameter specifies which data fields
+            from the VCF file should be included in the result. To extract all fields,
+            provide just the string '*'.
+        exclude_fields: Fields to exclude. E.g., for use in combination with fields='*'.
+        samples: Selection of samples to extract calldata for. If provided, should be
+            a list of strings giving sample identifiers. May also be a list of
+            integers giving indices of selected samples.
+
+    Returns:
+        field_columns: List of field columns.
+        sample_columns: List of sample columns.
+        selected_column_idxs: List of selected column indices.
     """
+
     # Define standard field names in a VCF file
     field_names = ['#CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT']
 
@@ -223,39 +222,35 @@ class VCFReaderPolars(SNPBaseReader):
              exclude_fields: Optional[List[str]] = None,
              region: Optional[str] = None,
              samples: Optional[List[str]] = None,
-             sum_strands: Optional[bool] = False) -> SNPObject:
+             sum_strands: Optional[bool] = False,
+             separator: Optional[str] = None
+             ) -> SNPObject:
         """
         Read a vcf file into a SNPObject.
 
-        Parameters
-        ----------
-        fields: '*', None or list of strings, default=None
-            Fields to extract data for. This parameter specifies which data fields
-            from the VCF file should be included in the result. Available options include
-            '#CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', and 'FORMAT'.
-            To extract all fields, provide just the string '*' or the default None.
-        exclude_fields: None or list of strings, default=None
-            Fields to exclude for use in combination with fields='*'. Available options include
-            '#CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', and 'FORMAT'.
-        region: string, default=None
-            Genomic region to extract variants for. If provided, it should be a
-            tabix-style region string, specifying a chromosome name and optionally
-            beginning and end coordinates (e.g., '2L:100000-200000'). TODO
-        samples: None, list of strings or list of ints, default=None
-            Selection of samples to extract calldata for. If provided, should be
-            a list of strings giving sample identifiers. May also be a list of
-            integers giving indices of selected samples.  If an empty list is provided,
-            no samples are extracted.
-        sum_strands: bool, default=False
-            True if the maternal and paternal strands are to be summed together, 
-            False if the strands are to be stored separately.
+        Args:
+            fields: Fields to extract data for. This parameter specifies which data fields
+                from the VCF file should be included in the result. Available options include
+                '#CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', and 'FORMAT'.
+                To extract all fields, provide just the string '*' or the default None.
+            exclude_fields: Fields to exclude for use in combination with fields='*'.
+                Available options include '#CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER',
+                'INFO', and 'FORMAT'.
+            region: Genomic region to extract variants for. If provided, it should be a
+                tabix-style region string, specifying a chromosome name and optionally
+                beginning and end coordinates (e.g., '2L:100000-200000'). TODO
+            samples: Selection of samples to extract calldata for. If provided, should be
+                a list of strings giving sample identifiers. May also be a list of
+                integers giving indices of selected samples.  If an empty list is provided,
+                no samples are extracted.
+            sum_strands: True if the maternal and paternal strands are to be summed together,
+                False if the strands are to be stored separately.
+            separator: Separator used in the pvar file. If None, the separator is automatically detected.
+                If the automatic detection fails, please specify the separator manually.
 
-        Returns
-        -------
-        snpobj: SNPObject
-            SNPObject containing the data from the VCF file. The format and content
-            of this object depend on the specified parameters and the content of
-            the VCF file.
+        Returns:
+            snpobj: SNPObject containing the data from the VCF file. The format and content
+                of this object depend on the specified parameters and the content of the VCF file.
         """
         # TODO: add support for excluding GT
 
@@ -263,21 +258,21 @@ class VCFReaderPolars(SNPBaseReader):
 
         try:
             # Get the names and data types for the VCF file
-            names = _get_vcf_names(self._filename)
-            dtype_options = _infer_data_types(names)
+            col_names, separator = _get_vcf_col_names_and_sep(self._filename)
+            col_dtypes = _infer_col_data_types(col_names)
 
             # Extract columns to read based on specified 'fields', 'exclude_fields' and 'samples'
             # `selected_column_idxs` contains the indexes of the selected columns
-            fields, samples, selected_column_idxs = _extract_columns(names, fields, exclude_fields, samples)
+            fields, samples, selected_column_idxs = _extract_columns(col_names, fields, exclude_fields, samples)
 
             # Read the VCF file into a Polars DataFrame
             vcf = pl.read_csv(
                 self._filename,
                 comment_prefix='#',
                 has_header=False,
-                separator='\t',
+                separator=separator,
                 columns=selected_column_idxs,
-                dtypes=dtype_options
+                dtypes=col_dtypes
             )
 
             log.debug("vcf polars read")

@@ -561,6 +561,7 @@ def add_AB_indIDs(ind_IDs):
 
 def process_labels_weights(labels_file, masks, rs_ID_list, ind_ID_list, average_strands, ancestry, min_percent_snps, remove_labels_dict, is_weighted, save_masks, masks_file, num_arrays=1):
     labels_df = pd.read_csv(labels_file, sep='\t')
+    labels_df['indID'] = labels_df['indID'].astype(str)
     label_list = []
     weight_list = []
     for array_ind in range(num_arrays):

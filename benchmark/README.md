@@ -8,13 +8,13 @@ On the chromosome 22 of the 1000 Genomes Project dataset:
 
 ## Running the benchmark
 
-The benchmark is run with the following command in the Phoenix compute cluster of the University of California Santa Cruz Genomics Institute:
+The benchmark can be run using conda and pip:
 
 ```bash
 conda create -n snputils python=3.12
 conda activate snputils
 pip install snputils[benchmark]
-bash benchmark/run.sh --data-dir /private/groups/ioannidislab/salcc/snputils_data
+bash benchmark/run.sh --data-dir $DATA_DIR
 ```
 The `--data-dir` argument specifies the directory where the data is stored. If the argument is not provided, it is stored in the `data` directory in the root of the repository. If the data is not found in the directory, it is downloaded from the internet.
 
